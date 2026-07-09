@@ -1,3 +1,4 @@
+```python
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -51,7 +52,6 @@ display_text = ""
 if audio_bytes:
     input_received = True
     display_text = "🎤 [Voice Audio Sent]"
-    # Convert audio to base64 so Gemini can listen directly
     audio_b64 = base64.b64encode(audio_bytes).decode('utf-8')
     part_data = {"inlineData": {"mimeType": "audio/wav", "data": audio_b64}}
 # Check if text was typed
@@ -61,7 +61,6 @@ elif user_input:
     part_data = {"text": f"User Input: {user_input}"}
 
 if input_received:
-    # Show user input in chat
     st.session_state.chat_history.append(("user", display_text))
     
     if not api_key:
@@ -87,7 +86,6 @@ if input_received:
         """
         
         try:
-            # Using Gemini 1.5 Flash for high-speed voice and text processing
             url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
             payload = {
                 "contents": [{
@@ -99,16 +97,82 @@ if input_received:
             
             ai_response_text = res_json['candidates'][0]['content']['parts'][0]['text'].strip()
             
-            # Clean JSON formatting
-            if ai_response_text.startswith("
-http://googleusercontent.com/immersive_entry_chip/0
-http://googleusercontent.com/immersive_entry_chip/1
-http://googleusercontent.com/immersive_entry_chip/2
+            # COPY-PASTE SAFE JSON CLEANING
+            clean_text = ai_response_text.replace("```json", "").replace("```", "").strip()
+            data = json.loads(clean_text)
+            
+            if data.get("action") == "add" and data.get("amount", 0) > 0:
+                st.session_state.main_db.append({
+                    "Date": data.get("date", current_date_str),
+                    "Item": data.get("item", "Unknown"),
+                    "Amount": float(data.get("amount", 0))
+                })
+            
+            st.session_state.chat_history.append(("assistant", data.get("reply", "Done Sir!")))
+            st.rerun()
+            
+        except Exception as e:
+            st.session_state.chat_history.append(("assistant", "Sorry Sir, I couldn't process that properly. Please try again."))
+            st.rerun()
 
-इसे पेस्ट करके **Commit changes** कर दीजिए।
+# --- LEDGER & WHATSAPP IMAGE OUTPUT ---
+st.markdown("---")
+st.subheader("📋 Cumulative Expense Ledger")
 
-### अब यह कैसे काम करेगा:
-जैसे ही ऐप रीफ्रेश होगा (इसमें 1-2 मिनट लग सकते हैं क्योंकि हमने एक नया टूल जोड़ा है):
-1. आपको स्क्रीन पर एक बड़ा **माइक आइकॉन (🎙️)** दिखाई देगा।
-2. आप उस पर टैप करके सीधा बोल सकते हैं (पहली बार में यह माइक की परमिशन मांगेगा)। 
-3. और अगर आपका बोलने का मन नहीं है, तो सबसे नीचे **चैट बॉक्स** भी मौजूद है, जहाँ आप आराम से टाइप भी कर सकते हैं।
+if st.session_state.main_db:
+    combined_df = pd.DataFrame(st.session_state.main_db)
+    st.dataframe(combined_df, use_container_width=True)
+    
+    total_amount = pd.to_numeric(combined_df["Amount"], errors='coerce').sum()
+    st.markdown(f"### 💵 Grand Total: **₹{total_amount:.2f}**")
+    
+    st.markdown("---")
+    st.subheader("📸 Share to WhatsApp")
+    
+    try:
+        fig, ax = plt.subplots(figsize=(6, len(combined_df) * 0.5 + 1.5))
+        ax.axis('tight')
+        ax.axis('off')
+        
+        img_data = combined_df.copy()
+        img_data.loc[len(img_data)] = ["TOTAL", "---", f"₹{total_amount:.2f}"]
+        
+        table = ax.table(cellText=img_data.values, colLabels=img_data.columns, cellLoc='center', loc='center')
+        table.auto_set_font_size(False)
+        table.set_fontsize(12)
+        table.scale(1.2, 1.5)
+        
+        for (row, col), cell in table.get_celld().items():
+            if row == 0:
+                cell.set_text_props(weight='bold', color='white')
+                cell.set_facecolor('#075E54')
+            elif row == len(img_data):
+                cell.set_text_props(weight='bold')
+                cell.set_facecolor('#e9ecef')
+        
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight', dpi=200)
+        buf.seek(0)
+        img_bytes = buf.getvalue()
+        plt.close(fig)
+        
+        st.download_button(
+            label="📥 Download Bill as Image (PNG)",
+            data=img_bytes,
+            file_name=f"Commandant_AI_Report_{datetime.today().strftime('%d_%m_%Y')}.png",
+            mime="image/png"
+        )
+    except Exception:
+        st.warning("Preparing image...")
+
+    st.markdown("---")
+    if st.button("⚠️ Clear All Data (Start New Bill)"):
+        st.session_state.main_db = []
+        st.session_state.chat_history = [st.session_state.chat_history[0]]
+        st.success("Ledger cleared!")
+        st.rerun()
+else:
+    st.info("Your ledger is empty. Tap the mic above or type below to add expenses!")
+
+
+```
