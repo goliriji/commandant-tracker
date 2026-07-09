@@ -2,8 +2,8 @@ import streamlit as st
 import requests
 import json
 import base64
-from audio_recorder_streamlit import audio_recorder
 import pandas as pd
+from audio_recorder_streamlit import audio_recorder
 
 # 1. Page Config
 st.set_page_config(page_title="Commandant Expense Tracker", page_icon="🛡️")
@@ -11,7 +11,7 @@ st.title("🛡️ Commandant Expense Tracker")
 
 # 2. API Key Check
 if "GEMINI_API_KEY" not in st.secrets:
-    st.error("API Key not found in Secrets. Please add it.")
+    st.error("API Key missing in Secrets!")
     st.stop()
 api_key = st.secrets["GEMINI_API_KEY"]
 
@@ -34,8 +34,8 @@ elif text_in:
 if input_data:
     st.write("🔍 Processing...")
     try:
-        # यहाँ gemini-1.5-flash का इस्तेमाल है
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={api_key}"
+        # यहाँ 3.5 मॉडल का नाम अपडेट कर दिया गया है
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}"
         payload = {
             "contents": [{
                 "parts": [
