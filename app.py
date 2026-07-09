@@ -20,14 +20,15 @@ if 'db' not in st.session_state: st.session_state.db = []
 audio = audio_recorder(text="Tap to Record", icon_size="2x")
 text_in = st.text_input("💬 Type expense manually...")
 
-# केवल बटन दबाने पर ही प्रोसेसिंग शुरू होगी
+# Button to trigger the process
 if st.button("Process Expense"):
     if audio or text_in:
-        st.write("🔍 Processing...")
+        # Use a placeholder to manage the status message
+        status = st.empty()
+        status.write("🔍 Processing... please wait.")
+        
         try:
-            prompt = 'Extract the expense item and amount in strictly JSON format: {"item": "Name", "amount": 0.0}'
-            
-            # इनपुट डेटा तैयार करना
+            prompt = 'Extract the expense item and amount in JSON format: {"item": "Name", "amount": 0.0}. If multiple, return a list.'
             input_data = {"mime_type": "audio/wav", "data": audio} if audio else text_in
             
             response = model.generate_content([prompt, input_data])
@@ -35,12 +36,22 @@ if st.button("Process Expense"):
             raw_text = response.text.replace("```json", "").replace("```", "").strip()
             data = json.loads(raw_text)
             
-            st.session_state.db.append(data)
-            st.success("Added successfully!")
+            # Handle both single dict and list of dicts
+            if isinstance(data, dict):
+                st.session_state.db.append(data)
+            elif isinstance(data, list):
+                st.session_state.db.extend(data)
+            
+            status.success("Added successfully!")
             time.sleep(1)
             st.rerun()
+            
         except Exception as e:
-            st.error(f"Error: {e}")
+            status.empty() # Remove processing message
+            if "429" in str(e):
+                st.error("Rate limit hit! Please wait 60 seconds before trying again.")
+            else:
+                st.error(f"Error: {e}")
     else:
         st.warning("Please record audio or type an expense first.")
 
