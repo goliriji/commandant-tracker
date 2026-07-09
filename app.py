@@ -5,25 +5,23 @@ import base64
 import pandas as pd
 from audio_recorder_streamlit import audio_recorder
 
-# 1. Page Config
+# पेज सेटिंग
 st.set_page_config(page_title="Commandant Expense Tracker", page_icon="🛡️")
 st.title("🛡️ Commandant Expense Tracker")
 
-# 2. API Key Check
+# API की चेक
 if "GEMINI_API_KEY" not in st.secrets:
     st.error("API Key missing in Secrets!")
     st.stop()
 api_key = st.secrets["GEMINI_API_KEY"]
 
-# 3. Session State
 if 'db' not in st.session_state: 
     st.session_state.db = []
 
-# 4. Input Area
+# इनपुट इंटरफेस
 audio = audio_recorder(text="Tap to Record", icon_size="2x")
 text_in = st.text_input("💬 Type expense manually...")
 
-# 5. Logic
 input_data = None
 if audio:
     b64 = base64.b64encode(audio).decode('utf-8')
@@ -31,18 +29,16 @@ if audio:
 elif text_in:
     input_data = {"text": text_in}
 
+# प्रोसेसिंग लॉजिक
 if input_data:
     st.write("🔍 Processing...")
     try:
-        # यहाँ 3.5 मॉडल का नाम अपडेट कर दिया गया है
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-3.5-flash:generateContent?key={api_key}"
+        # यहाँ आपके बताए अनुसार 3.1 मॉडल का इस्तेमाल है
+        model_name = "gemini-3.1-flash-lite"
+        url = f"https://generativelanguage.googleapis.com/v1beta/models/{model_name}:generateContent?key={api_key}"
+        
         payload = {
-            "contents": [{
-                "parts": [
-                    {"text": 'Extract item name and amount. Return ONLY valid JSON: {"item": "Name", "amount": 0.0}'},
-                    input_data
-                ]
-            }]
+            "contents": [{"parts": [{"text": 'Extract JSON: {"item": "Name", "amount": 0.0}'}, input_data]}]
         }
         
         response = requests.post(url, json=payload)
@@ -54,11 +50,11 @@ if input_data:
             st.session_state.db.append(data)
             st.rerun()
         else:
-            st.error(f"API Error: {response.status_code}")
+            st.error(f"Error {response.status_code}: {response.text}")
     except Exception as e:
-        st.error(f"Error: {e}")
+        st.error(f"Critical Error: {e}")
 
-# 6. Display
+# डिस्प्ले टेबल
 if st.session_state.db:
     df = pd.DataFrame(st.session_state.db)
     st.table(df)
