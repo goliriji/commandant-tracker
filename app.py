@@ -1,17 +1,14 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import dataframe_image as dfi
-import requests
+import matplotlib.pyplot as plt
+import io
 
 # Page configuration
 st.set_page_config(page_title="Commandant Expense Tracker", page_icon="💰")
-st.title("💰 Commandant Expense List (Smart Sync)")
+st.title("💰 Commandant Expense List (Super Fast)")
 
-# Google Sheet CSV URL for backup reading
-sheet_url = "https://docs.google.com/spreadsheets/d/1i9oBBE86UhSrTzCl1XGZtEvPinmYhbSdYcZFykvBN5A/export?format=csv"
-
-# 1. LOCAL MEMORY: Initialize local phone memory if not present
+# Initialize session state for memory
 if 'main_db' not in st.session_state:
     st.session_state.main_db = []
 
@@ -28,34 +25,19 @@ if submit_button and item_name and amount_str:
         amount = float(amount_str.strip())
         if amount > 0:
             formatted_date = date_selected.strftime("%d-%m-%Y")
-            
-            # Save to Local Phone Memory instantly (Safe Side)
-            new_entry = {
+            st.session_state.main_db.append({
                 "Date": formatted_date,
                 "Item": item_name,
                 "Amount": amount
-            }
-            st.session_state.main_db.append(new_entry)
-            
-            # 2. CLOUD SYNC: Silently try to send data to Google Sheet via a Form Trigger
-            # (Using a smart web app URL that doesn't need passwords/credentials)
-            try:
-                form_webhook = "https://docs.google.com/forms/d/e/1FAIpQLSfpv3A5e4Z9N1C5H8W9N7X2u5R_M6b8v1PqY9oZ_5v3u3_v2A/formResponse"
-                # If your google form isn't connected, this will fail safely without breaking the app
-                payload = {'entry.123456': formatted_date, 'entry.789101': item_name, 'entry.112131': amount}
-                requests.post(form_webhook, data=payload, timeout=2)
-                st.success(f"Successfully added '{item_name}' (Saved Locally & Synced to Cloud)!")
-            except Exception:
-                # If internet dips, it still saves locally!
-                st.success(f"Successfully added '{item_name}' (Saved Locally! Will sync to Cloud later).")
-                
+            })
+            st.success(f"Successfully added '{item_name}' (₹{amount})!")
             st.rerun()
         else:
             st.error("Amount must be greater than 0.")
     except ValueError:
         st.error("Please enter a valid number for Amount.")
 
-# Display Compiled Data
+# Display Data
 st.subheader("📋 Cumulative Expense Ledger")
 
 if st.session_state.main_db:
@@ -65,38 +47,57 @@ if st.session_state.main_db:
     total_amount = pd.to_numeric(combined_df["Amount"], errors='coerce').sum()
     st.markdown(f"### 💵 Grand Total: **₹{total_amount:.2f}**")
     
-    # --- IMAGE GENERATION FOR WHATSAPP ---
+    # --- NEW SUPER FAST IMAGE GENERATION CODE ---
     st.markdown("---")
     st.subheader("📸 Share to WhatsApp")
     
-    summary_df = combined_df.copy()
-    summary_df.loc[len(summary_df)] = ["TOTAL", "---", f"₹{total_amount:.2f}"]
-    
-    styled_df = summary_df.style.set_properties(**{
-        'background-color': '#f8f9fa',
-        'color': '#333333',
-        'border-color': '#dee2e6',
-        'font-size': '14px'
-    }).set_table_styles([
-        {'selector': 'th', 'props': [('background-color', '#075E54'), ('color', 'white'), ('font-weight', 'bold')]}
-    ])
-    
     try:
-        img_bytes = dfi.export(styled_df, table_conversion='matplotlib')
+        # Create a clean image using Matplotlib (Lightning Fast)
+        fig, ax = plt.subplots(figsize=(6, len(combined_df) * 0.5 + 1.5))
+        ax.axis('tight')
+        ax.axis('off')
+        
+        # Prepare data for the image table
+        img_data = combined_df.copy()
+        img_data.loc[len(img_data)] = ["TOTAL", "---", f"₹{total_amount:.2f}"]
+        
+        # Draw table
+        table = ax.table(cellText=img_data.values, colLabels=img_data.columns, cellLoc='center', loc='center')
+        table.auto_set_font_size(False)
+        table.set_fontsize(12)
+        table.scale(1.2, 1.5)
+        
+        # Style headers with Dark Teal / Green Color
+        for (row, col), cell in table.get_celld().items():
+            if row == 0:
+                cell.set_text_props(weight='bold', color='white')
+                cell.set_facecolor('#075E54')
+            elif row == len(img_data):
+                cell.set_text_props(weight='bold')
+                cell.set_facecolor('#e9ecef')
+        
+        # Save table to bytes buffer
+        buf = io.BytesIO()
+        plt.savefig(buf, format='png', bbox_inches='tight', dpi=200)
+        buf.seek(0)
+        img_bytes = buf.getvalue()
+        plt.close(fig)
+        
+        # Download Button (Appears Instantly!)
         st.download_button(
             label="📥 Download Bill as Image (PNG)",
             data=img_bytes,
             file_name=f"Commandant_Report_{datetime.today().strftime('%d_%m_%Y')}.png",
             mime="image/png"
         )
-    except Exception:
-        st.warning("Preparing image...")
+    except Exception as e:
+        st.error("Error creating image. Please contact support.")
 
     # --- CLEAR BUTTON ---
     st.markdown("---")
     if st.button("⚠️ Clear All Data (Start New Bill)"):
         st.session_state.main_db = []
-        st.success("Ledger cleared! Ready for new entries.")
+        st.success("Ledger cleared!")
         st.rerun()
 else:
-    st.info("Your ledger is empty. Added data will be saved both locally and in the cloud!")
+    st.info("Your ledger is empty. Added data will be saved here safely!")
