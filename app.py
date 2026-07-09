@@ -1,49 +1,43 @@
 import streamlit as st
-import requests
+import google.generativeai as genai
 import json
-import base64
 import pandas as pd
 from audio_recorder_streamlit import audio_recorder
 
+st.set_page_config(page_title="Commandant Expense Tracker", page_icon="🛡️")
 st.title("🛡️ Commandant Expense Tracker")
 
+# API Configuration
 if "GEMINI_API_KEY" not in st.secrets:
     st.error("API Key missing!")
     st.stop()
-api_key = st.secrets["GEMINI_API_KEY"]
+
+genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
+
+# आपकी फोटो के अनुसार लेटेस्ट मॉडल आईडी
+model = genai.GenerativeModel('gemini-3.5-flash') 
 
 if 'db' not in st.session_state: st.session_state.db = []
 
 audio = audio_recorder(text="Tap to Record", icon_size="2x")
 text_in = st.text_input("💬 Type expense manually...")
 
-input_data = None
-if audio:
-    b64 = base64.b64encode(audio).decode('utf-8')
-    input_data = {"inlineData": {"mimeType": "audio/wav", "data": b64}}
-elif text_in:
-    input_data = {"text": text_in}
-
-if input_data:
+# प्रोसेसिंग
+if audio or text_in:
     st.write("🔍 Processing...")
     try:
-        # यहाँ 'gemini-1.5-flash' का नाम हटाकर 'gemini-flash' लिखा है, यह ऑटो-अपडेट होगा
-        url = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-flash:generateContent?key={api_key}"
+        prompt = 'Extract the expense item and amount in strictly JSON format: {"item": "Name", "amount": 0.0}'
         
-        payload = {
-            "contents": [{"parts": [{"text": 'Extract JSON: {"item": "Name", "amount": 0.0}'}, input_data]}]
-        }
+        # प्रॉम्प्ट और इनपुट भेजना
+        input_data = text_in if text_in else audio
+        response = model.generate_content([prompt, input_data])
         
-        response = requests.post(url, json=payload)
+        # रिस्पॉन्स को क्लीन करना
+        raw_text = response.text.replace("```json", "").replace("```", "").strip()
+        data = json.loads(raw_text)
         
-        if response.status_code == 200:
-            res_json = response.json()
-            raw_text = res_json['candidates'][0]['content']['parts'][0]['text'].replace("```json", "").replace("```", "").strip()
-            data = json.loads(raw_text)
-            st.session_state.db.append(data)
-            st.rerun()
-        else:
-            st.error(f"Error {response.status_code}: {response.text}")
+        st.session_state.db.append(data)
+        st.rerun()
     except Exception as e:
         st.error(f"Error: {e}")
 
