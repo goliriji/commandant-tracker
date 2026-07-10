@@ -15,7 +15,7 @@ from datetime import datetime
 st.set_page_config(page_title="Commandant Expense Tracker", page_icon="🛡️")
 
 # --- API & Sheets Setup ---
-if "GEMINI_API_KEY" not in st.secrets or "gcp_service_account" not in st.secrets:
+if "GEMINI_API_KEY" not in st.secrets or "GOOGLE_CREDENTIALS" not in st.secrets:
     st.error("API Key या Google Sheets Credentials गायब हैं! Streamlit Secrets चेक करें।")
     st.stop()
 
@@ -24,10 +24,12 @@ model = genai.GenerativeModel('gemini-3.5-flash')
 
 def get_google_sheet():
     try:
+        # JSON टेक्स्ट को वापस डिक्शनरी में बदलना
+        creds_dict = json.loads(st.secrets["GOOGLE_CREDENTIALS"])
         scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-        creds = Credentials.from_service_account_info(st.secrets["gcp_service_account"], scopes=scopes)
+        creds = Credentials.from_service_account_info(creds_dict, scopes=scopes)
         client = gspread.authorize(creds)
-        # आपकी शीट का लिंक यहाँ है
+        # आपकी शीट का लिंक
         sheet = client.open_by_url("https://docs.google.com/spreadsheets/d/1i9oBBE86UhSrTzCl1XGZtEvPinmYhbSdYcZFykvBN5A/edit").sheet1
         return sheet
     except Exception as e:
@@ -86,7 +88,6 @@ if st.button("Process Expense", use_container_width=True, type="primary"):
     if img_upload or (audio and len(audio) > 0) or (text_in and len(text_in) > 0):
         with st.spinner("Processing with Gemini & Saving to Cloud..."):
             try:
-                # प्रॉम्प्ट में Date, Item, Amount फिक्स किया गया है
                 current_date = datetime.now().strftime("%d-%b-%Y")
                 prompt = f'''Extract the expense items. Return ONLY a valid JSON list format: [{{"Date": "DD-MMM-YYYY", "Item": "Name", "Amount": 0.0}}]. 
                 If no specific date is mentioned, use today's date: {current_date}. If it is an image, identify the item and price.'''
@@ -106,7 +107,6 @@ if st.button("Process Expense", use_container_width=True, type="primary"):
                 
                 if match:
                     data = json.loads(match.group())
-                    # Make sure it's a list
                     if isinstance(data, dict):
                         data = [data]
                         
@@ -116,7 +116,7 @@ if st.button("Process Expense", use_container_width=True, type="primary"):
                     sheet = get_google_sheet()
                     if sheet:
                         for row in data:
-                            sheet.append_row([row.get("Date", ""), row.get("Item", ""), row.get("Amount", "")])
+                            sheet.append_row([row.get("Date", ""), row.get("Item", ""), str(row.get("Amount", ""))])
                     
                     st.session_state.error_msg = None
                     time.sleep(1)
@@ -130,44 +130,3 @@ if st.button("Process Expense", use_container_width=True, type="primary"):
                 st.rerun()
     else:
         st.warning("Please provide input (Image, Text, or Audio) first.")
-
-# ==========================================
-# PROCESS LOGIC
-# ==========================================
-if process_btn:
-    if img_upload or (audio and len(audio) > 0) or (text_in and len(text_in) > 0):
-        with st.status("✨ Processing...", expanded=True) as status:
-            try:
-                prompt = 'Extract the expense items and amounts. Return ONLY a valid JSON list format: [{"item": "Name", "amount": 0.0}]. If it is an image of a receipt or item, identify the item and its price.'
-                
-                input_data = [prompt]
-                
-                if img_upload:
-                    image = Image.open(img_upload)
-                    input_data.append(image)
-                elif audio:
-                    input_data.append({"mime_type": "audio/wav", "data": audio})
-                elif text_in:
-                    input_data.append(text_in)
-                
-                response = model.generate_content(input_data)
-                match = re.search(r'\[.*\]|\{.*\}', response.text, re.DOTALL)
-                
-                if match:
-                    data = json.loads(match.group())
-                    if isinstance(data, dict):
-                        st.session_state.db.append(data)
-                    elif isinstance(data, list):
-                        st.session_state.db.extend(data)
-                    
-                    status.update(label="Added successfully!", state="complete")
-                    time.sleep(1)
-                    st.rerun()
-                else:
-                    raise ValueError(f"AI failed to format JSON. Raw: {response.text}")
-                    
-            except Exception as e:
-                status.update(label="Error processing data", state="error")
-                st.error(f"🚨 ACTUAL ERROR: {e}")
-    else:
-        st.warning("कृपया कुछ इनपुट दें (➕ फोटो, टेक्स्ट, या 🎙️ ऑडियो)!")
