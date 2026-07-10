@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 # पेज का लेआउट सेट करना
 st.set_page_config(page_title="Commandant Expense Tracker", page_icon="🛡️", layout="centered")
 
-# --- CUSTOM CSS (मोबाइल ऑप्टिमाइजेशन और Gemini लुक के लिए) ---
+# --- CUSTOM CSS (सिर्फ जरूरी चीजों के लिए, ताकि मोबाइल पर क्रैश न हो) ---
 st.markdown("""
 <style>
     /* खाली स्क्रीन का स्टाइल */
@@ -25,36 +25,15 @@ st.markdown("""
         font-family: sans-serif;
     }
 
-    /* 📱 मोबाइल स्क्रीन के लिए कॉलम को एक लाइन (Row) में जबरदस्ती रखना */
-    @media (max-width: 768px) {
-        div[data-testid="stHorizontalBlock"] {
-            flex-direction: row !important;
-            flex-wrap: nowrap !important;
-            align-items: center !important;
-        }
-        div[data-testid="column"] {
-            width: auto !important;
-            flex: 1 1 0% !important;
-            min-width: 0 !important;
-            padding: 0 3px !important;
-        }
-    }
-
     /* 🗂️ File Uploader को छोटा और साफ बनाना */
     div[data-testid="stFileUploaderDropzone"] {
         padding: 5px !important;
-        min-height: 40px !important;
     }
     div[data-testid="stFileUploaderDropzoneInstructions"] {
         display: none !important; /* "Drag and drop" टेक्स्ट छिपाएं */
     }
     small {
         display: none !important; /* "200MB limit" टेक्स्ट छिपाएं */
-    }
-    
-    /* टेक्स्ट इनपुट बॉक्स का मार्जिन कम करना */
-    div.stTextInput > div > div > input {
-        padding: 8px !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -65,8 +44,7 @@ if "GEMINI_API_KEY" not in st.secrets:
     st.stop()
 
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-# डिफ़ॉल्ट रूप से लेटेस्ट प्रो एक्सटेंडेड मॉडल का उपयोग किया जा रहा है
-model = genai.GenerativeModel('gemini-3.5-pro') 
+model = genai.GenerativeModel('gemini-3.5-flash') # वापस सही मॉडल पर सेट
 
 # 2. State Management
 if 'db' not in st.session_state: 
@@ -107,23 +85,25 @@ if st.session_state.db:
 else:
     st.markdown('<div class="empty-state">✨<br>Any new expenses to track?</div>', unsafe_allow_html=True)
 
-st.markdown("<br><br><br>", unsafe_allow_html=True)
+st.markdown("<br><br>", unsafe_allow_html=True)
 
 # ==========================================
-# BOTTOM SECTION: Gemini स्टाइल इनपुट बार
+# BOTTOM SECTION: मोबाइल फ्रेंडली इनपुट एरिया
 # ==========================================
 st.markdown("---")
 
-col1, col2, col3, col4 = st.columns([1.5, 4, 1.2, 1.2], gap="small")
+# लाइन 1: पूरा टेक्स्ट बॉक्स
+text_in = st.text_input("Ask", placeholder="Type expense here (e.g. 1 kg chicken 280)...", label_visibility="collapsed")
+
+# लाइन 2: फोटो, ऑडियो और सेंड बटन
+col1, col2, col3 = st.columns([1, 1, 1.5], gap="small")
 
 with col1:
     img_upload = st.file_uploader("Upload", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
 with col2:
-    text_in = st.text_input("Ask", placeholder="Ask Gemini...", label_visibility="collapsed")
+    audio = audio_recorder(text="🎙️", icon_size="2x")
 with col3:
-    audio = audio_recorder(text="", icon_size="2x")
-with col4:
-    process_btn = st.button("▶", use_container_width=True)
+    process_btn = st.button("▶ Process", use_container_width=True)
 
 
 # ==========================================
