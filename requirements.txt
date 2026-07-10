@@ -1,6 +1,5 @@
 streamlit
 pandas
-requests
 matplotlib
 audio-recorder-streamlit
 google-generativeai
