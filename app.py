@@ -4,18 +4,21 @@ import json
 import pandas as pd
 from audio_recorder_streamlit import audio_recorder
 import time
+import matplotlib.pyplot as plt
+import io
 
 st.set_page_config(page_title="Commandant Expense Tracker", page_icon="🛡️")
 st.title("🛡️ Commandant Expense Tracker")
 
-# 1. API Setup
+# 1. API Setup (Securely fetching from Streamlit Secrets)
 if "GEMINI_API_KEY" not in st.secrets:
-    st.error("API Key missing!")
+    st.error("API Key missing! Please add it to Streamlit Secrets.")
     st.stop()
 
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-# Using the stable ID format
-model = genai.GenerativeModel('gemini-3.5-flash') 
+
+# Using the pro extended model 
+model = genai.GenerativeModel('gemini-3.1-pro') 
 
 # 2. State Management
 if 'db' not in st.session_state: 
@@ -25,21 +28,17 @@ if 'db' not in st.session_state:
 audio = audio_recorder(text="Tap to Record", icon_size="2x")
 text_in = st.text_input("💬 Type expense manually...")
 
-# 4. Process Logic (Isolated)
+# 4. Process Logic 
 if st.button("Process Expense"):
-    # Only proceed if we have valid input
     if (audio and len(audio) > 0) or (text_in and len(text_in) > 0):
         with st.status("🔍 Processing...", expanded=True) as status:
             try:
                 prompt = 'Extract the expense item and amount in JSON format: {"item": "Name", "amount": 0.0}. Return a list.'
                 
-                # Prepare input safely
                 input_content = {"mime_type": "audio/wav", "data": audio} if audio else text_in
                 
-                # API Call
                 response = model.generate_content([prompt, input_content])
                 
-                # Cleanup
                 raw_text = response.text.replace("```json", "").replace("```", "").strip()
                 data = json.loads(raw_text)
                 
@@ -54,13 +53,32 @@ if st.button("Process Expense"):
                 
             except Exception as e:
                 status.update(label="Error processing data", state="error")
-                if "429" in str(e):
-                    st.error("Rate limit reached. Please wait 60 seconds.")
-                else:
-                    st.error(f"Error: {e}")
+                st.error(f"DEBUG ERROR: {e}") 
     else:
         st.warning("Please record audio or type an expense first.")
 
-# 5. Display
+# 5. Display and Download as Image
 if st.session_state.db:
-    st.table(pd.DataFrame(st.session_state.db))
+    df = pd.DataFrame(st.session_state.db)
+    st.table(df)
+    
+    # Generate PNG image of the table
+    fig, ax = plt.subplots(figsize=(8, len(df) * 0.6 + 1))
+    ax.axis('tight')
+    ax.axis('off')
+    
+    table = ax.table(cellText=df.values, colLabels=df.columns, loc='center', cellLoc='center')
+    table.auto_set_font_size(False)
+    table.set_fontsize(12)
+    table.scale(1.2, 1.5)
+    
+    buf = io.BytesIO()
+    plt.savefig(buf, format="png", bbox_inches='tight', dpi=300, transparent=False, facecolor='white')
+    buf.seek(0)
+    
+    st.download_button(
+        label="⬇️ Download Data as PNG",
+        data=buf,
+        file_name='commandant_expenses.png',
+        mime='image/png',
+    )
