@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 # पेज का लेआउट सेट करना
 st.set_page_config(page_title="Commandant Expense Tracker", page_icon="🛡️", layout="centered")
 
-# --- CUSTOM CSS (Gemini लुक के लिए) ---
+# --- CUSTOM CSS (मोबाइल ऑप्टिमाइजेशन और Gemini लुक के लिए) ---
 st.markdown("""
 <style>
     /* खाली स्क्रीन का स्टाइल */
@@ -20,9 +20,41 @@ st.markdown("""
         text-align: center;
         font-size: 28px;
         color: #1f1f1f;
-        margin-top: 25vh;
+        margin-top: 15vh;
         font-weight: 500;
         font-family: sans-serif;
+    }
+
+    /* 📱 मोबाइल स्क्रीन के लिए कॉलम को एक लाइन (Row) में जबरदस्ती रखना */
+    @media (max-width: 768px) {
+        div[data-testid="stHorizontalBlock"] {
+            flex-direction: row !important;
+            flex-wrap: nowrap !important;
+            align-items: center !important;
+        }
+        div[data-testid="column"] {
+            width: auto !important;
+            flex: 1 1 0% !important;
+            min-width: 0 !important;
+            padding: 0 3px !important;
+        }
+    }
+
+    /* 🗂️ File Uploader को छोटा और साफ बनाना */
+    div[data-testid="stFileUploaderDropzone"] {
+        padding: 5px !important;
+        min-height: 40px !important;
+    }
+    div[data-testid="stFileUploaderDropzoneInstructions"] {
+        display: none !important; /* "Drag and drop" टेक्स्ट छिपाएं */
+    }
+    small {
+        display: none !important; /* "200MB limit" टेक्स्ट छिपाएं */
+    }
+    
+    /* टेक्स्ट इनपुट बॉक्स का मार्जिन कम करना */
+    div.stTextInput > div > div > input {
+        padding: 8px !important;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -33,7 +65,8 @@ if "GEMINI_API_KEY" not in st.secrets:
     st.stop()
 
 genai.configure(api_key=st.secrets["GEMINI_API_KEY"])
-model = genai.GenerativeModel('gemini-3.5-flash') 
+# डिफ़ॉल्ट रूप से लेटेस्ट प्रो एक्सटेंडेड मॉडल का उपयोग किया जा रहा है
+model = genai.GenerativeModel('gemini-3.5-pro') 
 
 # 2. State Management
 if 'db' not in st.session_state: 
@@ -45,12 +78,10 @@ if 'db' not in st.session_state:
 if st.session_state.db:
     df = pd.DataFrame(st.session_state.db)
     
-    # हेडर और डाउनलोड बटन (टॉप राइट)
     col_title, col_down = st.columns([3, 1])
     with col_title:
         st.markdown("### 🛡️ Expense Data")
     with col_down:
-        # PNG इमेज जनरेट करना
         fig, ax = plt.subplots(figsize=(6, len(df) * 0.5 + 1))
         ax.axis('tight')
         ax.axis('off')
@@ -70,14 +101,12 @@ if st.session_state.db:
             mime='image/png',
             use_container_width=True
         )
-        plt.close(fig) # मेमोरी बचाने के लिए
+        plt.close(fig)
         
     st.dataframe(df, use_container_width=True)
 else:
-    # Gemini जैसा खाली पेज
     st.markdown('<div class="empty-state">✨<br>Any new expenses to track?</div>', unsafe_allow_html=True)
 
-# स्क्रीन के नीचे तक स्पेस बनाना
 st.markdown("<br><br><br>", unsafe_allow_html=True)
 
 # ==========================================
@@ -85,8 +114,7 @@ st.markdown("<br><br><br>", unsafe_allow_html=True)
 # ==========================================
 st.markdown("---")
 
-# लेआउट: [ ➕ फोटो ] [ टेक्स्ट ] [ 🎙️ वॉइस ] [ ▶ सेंड ]
-col1, col2, col3, col4 = st.columns([1.5, 4, 1.2, 1], gap="small")
+col1, col2, col3, col4 = st.columns([1.5, 4, 1.2, 1.2], gap="small")
 
 with col1:
     img_upload = st.file_uploader("Upload", type=["png", "jpg", "jpeg"], label_visibility="collapsed")
@@ -109,7 +137,6 @@ if process_btn:
                 
                 input_data = [prompt]
                 
-                # चेक करना कि यूज़र ने क्या इनपुट दिया है
                 if img_upload:
                     image = Image.open(img_upload)
                     input_data.append(image)
@@ -118,7 +145,6 @@ if process_btn:
                 elif text_in:
                     input_data.append(text_in)
                 
-                # API Call
                 response = model.generate_content(input_data)
                 match = re.search(r'\[.*\]|\{.*\}', response.text, re.DOTALL)
                 
