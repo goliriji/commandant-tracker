@@ -3,3 +3,4 @@ pandas
 matplotlib
 audio-recorder-streamlit
 google-generativeai
+Pillow
